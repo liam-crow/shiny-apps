@@ -1,0 +1,66 @@
+---
+title: '&nbsp;'
+output: html_document
+runtime: shiny_prerendered
+banner: ''
+description: 'An interactive dashboard to search for Useless AFL Stats'
+images: []
+menu: ''
+---
+
+```{r, context="setup", echo=F, warning=F, message=F}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(dplyr)
+library(shiny)
+library(DT)
+name_choices <- c('kicks', 'marks', 'handballs', 'goals', 'behinds', 'hit_outs', 'tackles', 'rebounds', 'inside_50_s', 'clearances', 'clangers', 'frees_for', 'frees_against', 'brownlow_votes', 'contested_possessions', 'uncontested_possessions', 'contested_marks', 'marks_inside_50', 'one_percenters', 'bounces', 'goal_assists', 'time_on_ground','jumper_no', 'playing_for_score', 'opp_score', 'home_score', 'away_score',  'hq_1_g', 'hq_1_b', 'hq_2_g', 'hq_2_b', 'hq_3_g', 'hq_3_b', 'hq_4_g', 'hq_4_b', 'aq_1_g', 'aq_1_b', 'aq_2_g', 'aq_2_b', 'aq_3_g', 'aq_3_b', 'aq_4_g', 'aq_4_b', 'pq_1_g', 'pq_1_b', 'pq_2_g', 'pq_2_b', 'pq_3_g', 'pq_3_b', 'pq_4_g', 'pq_4_b', 'oq_1_g', 'oq_1_b', 'oq_2_g', 'oq_2_b', 'oq_3_g', 'oq_3_b', 'oq_4_g', 'oq_4_b')
+
+comparison_choices <- c('no comparison', '>', '>=', '==', '<=', '<')
+```
+
+```{r, context="data"}
+afltables <- readRDS("afltables.rds")
+```
+
+```{r, context='render'}
+fluidPage(
+  fluidRow(
+    column(3,selectInput("stat1", "Select First Statistic:", choices = name_choices, selected = 'kicks')),
+    column(3,selectInput("calc", "Select comparison:", choices = comparison_choices)),
+    column(3,selectInput("stat2", "Select Second Statistic:", choices = name_choices, selected = 'marks'))
+  )
+)
+
+DT::dataTableOutput('afl_out_dt')
+```
+
+```{r, context='server'}
+output$afl_out_dt <- DT::renderDataTable({
+  DT::datatable(
+    afltables %>% 
+      select(season, round, h_a, first_name, surname, playing_for, opp, w_l,
+             stat1 = input$stat1, stat2 = input$stat2) %>% 
+      filter(
+        case_when(
+          input$calc == ">"  ~ stat1 >  stat2,
+          input$calc == ">=" ~ stat1 >= stat2,
+          input$calc == "==" ~ stat1 == stat2,
+          input$calc == "<=" ~ stat1 <= stat2,
+          input$calc == "<"  ~ stat1 <  stat2,
+          TRUE ~ T
+        )
+      ),
+    extensions = 'FixedHeader',
+    filter = 'top',
+    rownames = F,
+    colnames = c('Season', 'Round', 'H/A', 'First Name', 'Last Name', 'Playing For', 'Opposition', 'W/L', stringr::str_to_title(input$stat1), stringr::str_to_title(input$stat2)),
+    options = list(
+      order = list(8, 'desc'),
+      fixedHeader = TRUE,
+      pageLength = 50
+    )
+  )
+})
+
+```
+
