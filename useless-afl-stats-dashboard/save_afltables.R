@@ -1,4 +1,6 @@
-afltables <- fitzRoy::get_afltables_stats(start_date = "2000-01-01") %>% 
+library(dplyr)
+
+afltables <- fitzRoy::fetch_player_stats_afltables(season = 2000) %>% 
   rename_with(snakecase::to_snake_case) %>% 
   mutate(
     disposals = kicks + handballs,
@@ -52,4 +54,4 @@ afltables <- fitzRoy::get_afltables_stats(start_date = "2000-01-01") %>%
          pq_4_g, pq_4_b, oq_1_g, oq_1_b, oq_2_g, 
          oq_2_b, oq_3_g, oq_3_b, oq_4_g, oq_4_b)
 
-saveRDS(afltables, 'uas_dashboard/afltables.rds')
+saveRDS(afltables, 'useless-afl-stats-dashboard/afltables.rds')
