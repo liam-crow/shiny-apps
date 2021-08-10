@@ -55,5 +55,3 @@ afltables <- fitzRoy::fetch_player_stats_afltables(season = 2000:2021) %>%
          oq_2_b, oq_3_g, oq_3_b, oq_4_g, oq_4_b)
 
 saveRDS(afltables, 'useless-afl-stats-dashboard/afltables.rds')
-
-# rsconnect::deployDoc("useless-afl-stats-dashboard/2020-07-31-useless-afl-stats-dashboard.Rmd")
