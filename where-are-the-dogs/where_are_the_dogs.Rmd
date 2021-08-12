@@ -1,0 +1,98 @@
+---
+title: '&nbsp;'
+output: html_document
+runtime: shiny_prerendered
+banner: ''
+description: 'Where are the Dogs in Brisbane?'
+images: []
+menu: ''
+---
+
+```{r, context="setup", echo=F, warning=F, message=F}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(dplyr)
+library(shiny)
+library(plotly)
+library(DT)
+```
+
+```{r, context="data"}
+animal_permits <- readRDS("animal_permits.rds")
+
+unique_suburb <- unique(animal_permits$suburb)
+unique_breed <- unique(animal_permits$breed)
+```
+
+```{r, context='render'}
+titlePanel('Where are the Dogs in Brisbane?')
+# select suburb to filter by
+fluidRow(
+  column(4,
+         selectInput(
+           inputId = 'in_suburb', 'Choose Suburb', 
+           choices = unique_suburb, selected = 'Brisbane City', 
+           selectize = TRUE)
+  )
+)
+
+fluidRow(plotlyOutput(outputId = 'out_suburb_plotly'))
+
+hr()
+# select breed to filter by
+fluidRow(
+  column(4,
+         selectInput(
+           inputId = 'in_breed', 'Choose Breed', 
+           choices = unique_breed, selected = 'Maltese', 
+           selectize = TRUE)
+  )
+)
+
+fluidRow(plotlyOutput(outputId = 'out_breed_plotly'))
+
+```
+
+```{r, context='server'}
+
+#create suburb filtered data
+animal_permits_suburb <- reactive({
+  animal_permits %>% 
+    filter(suburb == input$in_suburb) %>% 
+    group_by(breed) %>% count() %>% arrange(-n) %>% head(20)
+})
+
+#create suburb plotly 
+output$out_suburb_plotly <- renderPlotly({
+  plot_ly(
+    data = animal_permits_suburb(),
+    x = ~reorder(breed,-n), y = ~n,
+    type = 'bar'
+  ) %>% 
+    layout(
+      xaxis = list(title = 'Suburb'),
+      yaxis = list(title = 'No. of registrations')
+    )
+})
+
+#create breed filtered data
+animal_permits_breed <- reactive({
+  animal_permits %>% 
+    filter(breed == input$in_breed) %>% 
+    group_by(suburb) %>% count() %>% arrange(-n) %>% head(20)
+})
+
+#create breed plotly 
+output$out_breed_plotly <- renderPlotly({
+  plot_ly(
+    data = animal_permits_breed(),
+    x = ~reorder(suburb,-n), y = ~n,
+    type = 'bar'
+  ) %>% 
+    layout(
+      xaxis = list(title = 'Breed'),
+      yaxis = list(title = 'No. of registrations')
+    )
+})
+
+```
+

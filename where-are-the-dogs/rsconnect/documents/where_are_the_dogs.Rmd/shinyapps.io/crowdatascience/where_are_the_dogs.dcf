@@ -1,0 +1,11 @@
+name: where_are_the_dogs
+title:
+username:
+account: crowdatascience
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4484459
+bundleId: 4914940
+url: https://crowdatascience.shinyapps.io/where_are_the_dogs/
+when: 1628754802.35367
+lastSyncTime: 1628754802.35367
