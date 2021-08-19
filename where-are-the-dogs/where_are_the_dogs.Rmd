@@ -24,7 +24,6 @@ unique_breed <- unique(animal_permits$breed)
 ```
 
 ```{r, context='render'}
-titlePanel('Where are the Dogs in Brisbane?')
 # select suburb to filter by
 fluidRow(
   column(4,

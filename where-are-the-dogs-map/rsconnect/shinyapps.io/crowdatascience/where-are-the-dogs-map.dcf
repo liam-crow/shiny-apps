@@ -1,0 +1,11 @@
+name: where-are-the-dogs-map
+title:
+username:
+account: crowdatascience
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4510108
+bundleId: 4939799
+url: https://crowdatascience.shinyapps.io/where-are-the-dogs-map/
+when: 1629352750.5607
+lastSyncTime: 1629352750.5607
