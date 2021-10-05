@@ -1,0 +1,11 @@
+name: wet_weather_app
+title:
+username:
+account: crowdatascience
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4798799
+bundleId: 5105508
+url: https://crowdatascience.shinyapps.io/wet_weather_app/
+when: 1633422091.43235
+lastSyncTime: 1633422091.43235
