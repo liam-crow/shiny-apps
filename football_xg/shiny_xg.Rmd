@@ -1,0 +1,202 @@
+---
+title: '&nbsp;'
+output: html_document
+runtime: shiny
+banner: ''
+description: 'A-league Men XG Graphs'
+images: []
+menu: ''
+---
+
+```{r, context="setup", echo=F, warning=F, message=F}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(worldfootballR)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(glue)
+library(snakecase)
+library(shinycssloaders)
+```
+
+```{r, context="data"}
+team_colours <- c(
+    'Western Sydney Wanderers FC' = '#c60c30',
+    'Newcastle Jets'='#005090',
+    'Melbourne Victory'='#032e5e',
+    'Brisbane Roar FC'='#f26522',
+    'Central Coast Mariners'='#1858A8',
+    'Western United FC'='#2bb56c',
+    'Sydney FC'='#62a8da',
+    'Macarthur FC'='#333333',
+    'Adelaide United'='#e30043',
+    'Perth Glory'='#603090',
+    'Wellington Phoenix'='#907808',
+    'Melbourne City FC'='#7ab2e1'
+)
+
+league_matches <- fotmob_get_league_matches(country = 'AUS', league_name = 'A-League')
+```
+
+```{r, context='render'}
+fluidPage(
+    fluidRow(
+        column(3,selectInput("round", "Select Round:", choices = 1:26, selected = 1)),
+    ),
+    plotlyOutput("xg_plot")
+)
+```
+
+```{r, context='server'}
+
+output$xg_plot <- renderPlotly({
+    
+    league_wide <- league_matches %>% 
+        filter(round_name == input$round) %>% 
+        unnest(cols = c(status))
+    
+    match_ids <- league_wide %>% pull(id)
+    
+    game_score <- league_wide %>% 
+        select(id, scoreStr) %>% 
+        mutate(id = as.integer(id))
+    
+    match_details <- fotmob_get_match_details(match_ids)
+    
+    match_xg_line <- match_details %>% 
+        select(match_id, match_round, league_name, parent_league_season,
+               match_time_utc, home_team_id, home_team, home_team_color, 
+               away_team_id, away_team, away_team_color,
+               team_id, player_name, first_name, last_name, team_color,
+               event_type, x, y, min, min_added, is_blocked, is_on_target,
+               expected_goals, expected_goals_on_target, shot_type, situation, period,
+               is_own_goal) %>% 
+        replace_na(list(min_added = 0, expected_goals = 0, expected_goals_on_target = 0)) %>% 
+        inner_join(game_score, by = c('match_id' = 'id')) %>% 
+        mutate(
+            situation = to_title_case(situation),
+            shot_type = to_title_case(shot_type),
+            event_type = if_else(is_own_goal == T, 'Own Goal',event_type),
+            playing_for = if_else(team_id == home_team_id, home_team, away_team),
+            .before = 'team_id',
+            real_time = min + min_added
+        ) %>% 
+        group_by(match_id, playing_for) %>% 
+        mutate(
+            playing_for = case_when(
+                is_own_goal == T & playing_for == home_team ~ away_team,
+                is_own_goal == T & playing_for == away_team ~ home_team,
+                T ~ playing_for
+            )
+        ) %>% 
+        mutate(
+            game_name = paste(home_team,'vs',away_team,': ',scoreStr),
+            t_xg = round(cumsum(expected_goals),2),
+            t_xgot = round(cumsum(expected_goals_on_target),2)
+        ) %>% ungroup()
+    
+    # team_colours <- match_xg_line %>% 
+    #     distinct(playing_for, team_color) #%>% 
+    #     tibble::deframe()
+    
+    added_time <- match_xg_line %>% 
+        select(game_name, period, min_added) %>% 
+        filter(period == 'FirstHalf') %>% 
+        group_by(game_name) %>% 
+        filter(min_added == max(min_added)) %>% 
+        ungroup() %>% 
+        distinct() %>% 
+        select(game_name, min_added_from_first = min_added)
+    
+    match_xg_line_plus_time <- match_xg_line %>% 
+        inner_join(added_time, by = "game_name") %>% 
+        mutate(real_time = if_else(period != 'FirstHalf',real_time+min_added_from_first, real_time))
+    
+    xg_line_end <- match_xg_line_plus_time %>% 
+        select(game_name, playing_for, real_time) %>% 
+        group_by(game_name, playing_for) %>% 
+        filter(real_time == max(real_time)) %>% 
+        slice(1) %>% 
+        group_by(game_name) %>% 
+        mutate(real_time = max(real_time)+1) %>% 
+        ungroup()
+    
+    xg_line_start <- xg_line_end %>% 
+        mutate(real_time = 0, t_xg = 0)
+    
+    match_xg_line_plus_end <- match_xg_line_plus_time %>% 
+        add_row(xg_line_end) %>% 
+        add_row(xg_line_start) %>% 
+        group_by(playing_for) %>% 
+        fill(t_xg,.direction = 'down') %>% ungroup() %>% 
+        rowwise() %>% 
+        mutate(
+            injury_time = if_else(min_added>0,glue('+{min_added}'),NULL),
+            time_format = glue('{min}{injury_time}',.na = '')
+        )
+    
+    match_goal_points <- match_xg_line_plus_end %>% 
+        select(game_name, home_team, away_team, playing_for, player_name, real_time, expected_goals, 
+               expected_goals_on_target, t_xg, event_type, 
+               is_own_goal, time_format, situation, shot_type) %>% 
+        filter(event_type %in% c('Goal','Own Goal'))
+    
+    plot_title <- match_xg_line_plus_time %>% 
+        distinct(league_name, parent_league_season, match_round) %>% 
+        mutate(title = glue('{league_name} {parent_league_season}: Round {match_round}')) %>% 
+        pull(title)
+    
+    p1 <- ggplot() +
+        geom_step(
+            match_xg_line_plus_end, alpha = 0.7,
+            mapping = aes(x = real_time, y = t_xg, colour = playing_for)
+        ) +
+        geom_point(
+            match_xg_line_plus_end %>% filter(!is.na(expected_goals)), size = 0.1,
+            mapping = aes(x = real_time, y = t_xg, colour = playing_for,
+                          text = glue('<span style = "font-size:1.2em">{time_format}\' {to_title_case(event_type)}</span>
+                                  {playing_for}
+                                  {player_name}
+                                    {round(expected_goals,2)} xg
+                                    {round(expected_goals_on_target,2)} xGOT
+                                    <i>Situation</i>: {situation}, {shot_type}'))
+        ) +
+        geom_point(
+            match_goal_points,
+            mapping = aes(x = real_time, y = t_xg, colour = playing_for,
+                          text = glue('<span style = "font-size:1.2em">{time_format}\' {event_type}</span>
+                                  {playing_for}
+                                  {player_name}
+                                    {round(expected_goals,2)} xG
+                                    {round(expected_goals_on_target,2)} xGOT
+                                    <i>Situation</i>: {situation}, {shot_type}'))
+        ) +
+        facet_wrap(vars(game_name), scales = 'free_x', nrow = 3) +
+        theme_minimal() +
+        theme(
+            legend.position = 'none',
+            axis.ticks = element_blank(),
+            axis.text.x = element_blank()
+        ) +
+        labs(
+            title = glue(plot_title,'<br><sup><i>Cumulative Expected Goals per Team. Dot indicates Goal Scored. Hover for details</i></sup>'),
+            x = 'Game Time Elapsed',
+            y = 'Cumulative Expected Goals'
+        ) +
+        scale_colour_manual(values = team_colours) #+
+    # scale_y_continuous(labels=scales::number_format(suffix="xG"))
+    
+    ggplotly(p1, tooltip = 'text') %>%
+        layout(
+            font = list(family = 'Franklin Gothic'),
+            hovermode = 'closest',
+            margin = list(t = 75,l = 50, b = 10),
+            annotations = list(x = 1, y = -0.03, text = "Twitter: @crow_data_sci",
+                            xref='paper', yref='paper', showarrow = F, 
+                            xanchor='right', yanchor='auto', xshift=0, yshift=0,
+                            font = list(size = 10))
+        ) %>% 
+        config(displaylogo = F, showSendToCloud = F, displayModeBar = F)
+})
+```

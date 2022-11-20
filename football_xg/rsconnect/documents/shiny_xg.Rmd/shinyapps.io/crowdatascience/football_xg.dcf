@@ -1,0 +1,13 @@
+name: football_xg
+title: football_xg
+username:
+account: crowdatascience
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7683081
+bundleId: 6534330
+url: https://crowdatascience.shinyapps.io/football_xg/
+when: 1668931438.74136
+lastSyncTime: 1668931438.74137
+asMultiple: FALSE
+asStatic: FALSE
